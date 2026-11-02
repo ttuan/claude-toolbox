@@ -1,6 +1,6 @@
 {
   "name": "skin",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Restyle Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit",
   "types": "./types/index.d.ts",
   "userConfig": {

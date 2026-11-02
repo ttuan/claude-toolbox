@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { parseCommand } from './commands'
+
 const TOOL_USE = {
   plugin: 'skin',
   component: 'ToolUse',
@@ -255,4 +257,70 @@ test('a new file ending in a newline is not counted a line over', async ($, on) 
   })
   expect(await row.find({ type: 'Text', text: /\+2/ })).toBeTruthy()
   await row.unmount()
+})
+
+// --- /skin command grammar ---
+
+test('command: an empty line and "status" show the settings', () => {
+  expect(parseCommand('')).toEqual({ kind: 'status' })
+  expect(parseCommand('status')).toEqual({ kind: 'status' })
+})
+
+test('command: help and reset', () => {
+  expect(parseCommand('help')).toEqual({ kind: 'help' })
+  expect(parseCommand('reset')).toEqual({ kind: 'reset' })
+})
+
+test('command: colors on and off, in loose wording', () => {
+  expect(parseCommand('colors on')).toEqual({ kind: 'colors', on: true })
+  expect(parseCommand('colours off')).toEqual({ kind: 'colors', on: false })
+  expect(parseCommand('turn colors off')).toEqual({ kind: 'colors', on: false })
+})
+
+test('command: details show and hide, in either order', () => {
+  expect(parseCommand('details hide')).toEqual({ kind: 'details', show: false })
+  expect(parseCommand('hide details')).toEqual({ kind: 'details', show: false })
+  expect(parseCommand('details show')).toEqual({ kind: 'details', show: true })
+  expect(parseCommand('show details')).toEqual({ kind: 'details', show: true })
+})
+
+test('command: the old compact wording still works', () => {
+  expect(parseCommand('compact on')).toEqual({ kind: 'details', show: false })
+  expect(parseCommand('compact off')).toEqual({ kind: 'details', show: true })
+})
+
+test('command: output counts, all and default, in loose wording', () => {
+  for (const line of ['output 3', 'output 3 lines', 'show 3 lines', 'limit output to 3 lines']) {
+    expect(parseCommand(line)).toEqual({ kind: 'output', lines: 3 })
+  }
+  expect(parseCommand('output all')).toEqual({ kind: 'output', lines: 'max' })
+  expect(parseCommand('show all output')).toEqual({ kind: 'output', lines: 'max' })
+  expect(parseCommand('output default')).toEqual({ kind: 'output', lines: null })
+})
+
+test('command: a missing value or unknown words are not guessed', () => {
+  expect(parseCommand('colors').kind).toBe('unknown')
+  expect(parseCommand('details').kind).toBe('unknown')
+  expect(parseCommand('output').kind).toBe('unknown')
+  expect(parseCommand('banana').kind).toBe('unknown')
+})
+
+// The kit has no $.store of its own: keep it in a map for the test.
+function withStore(on: any) {
+  const values: Record<string, unknown> = {}
+  on('store.get', (_: any, e: any) => ({ value: values[e.key] }))
+  on('store.set', (_: any, e: any) => {
+    values[e.key] = e.value
+    return { value: undefined }
+  })
+}
+
+test('command: /skin answers in full sentences', async ($, on) => {
+  withStore(on)
+  const set = await $.command.run({ command: 'skin', args: 'output 3' })
+  expect(set.text).toMatch(/Tool output now shows the first 3 lines/)
+  const status = await $.command.run({ command: 'skin', args: '' })
+  expect(status.text).toMatch(/Output:\s+the first 3 lines/)
+  const unknown = await $.command.run({ command: 'skin', args: 'banana' })
+  expect(unknown.text).toMatch(/didn't understand "banana"/)
 })

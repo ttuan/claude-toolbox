@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { OutputLines } from '../types'
+import { ARGUMENT_HINT, HELP, describeOutput, parseCommand } from './commands'
 
 // Tool inputs are `unknown` at ui.render; read fields defensively.
 type AnyInput = {
@@ -215,12 +216,6 @@ function resultSpans(tool: string, output: unknown): Span[] | undefined {
   return undefined
 }
 
-function parseOutputLines(arg: string | undefined): OutputLines | undefined {
-  if (arg === 'max') return 'max'
-  if (arg === 'default') return null
-  return arg !== undefined && /^\d+$/.test(arg) ? Number(arg) : undefined
-}
-
 const isOutputLines = (value: unknown): value is OutputLines =>
   value === null || value === 'max' || (typeof value === 'number' && value >= 0)
 
@@ -264,12 +259,14 @@ const outputLines = atom(
   null as OutputLines,
 )
 
-// Read the toggle and length cap from settings; refreshed on each reload.
+// Colours on/off: the /config default, overridden by `/skin colors` (kept in
+// $.store so it carries over). maxChars comes from /config only.
 let enabled = true
+let enabledDefault = true
 let maxChars = 2000
 
 export const register: Register = (on, options) => {
-  if (typeof options.enabled === 'boolean') enabled = options.enabled
+  if (typeof options.enabled === 'boolean') enabled = enabledDefault = options.enabled
   if (typeof options.maxChars === 'number' && options.maxChars > 0) {
     maxChars = options.maxChars
   }
@@ -277,9 +274,11 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'skin',
-      description:
-        'Toggle tool-row colouring (on | off), hide tool details (compact [on | off]), or limit tool output (lines <n> | max | default)',
+      description: 'Restyle tool rows: colours, details, output length. /skin alone shows the settings',
+      argumentHint: ARGUMENT_HINT,
     })
+    const storedColors = await $.store.get('colors')
+    if (typeof storedColors === 'boolean') enabled = storedColors
     const stored = await $.store.get('compact')
     if (typeof stored === 'boolean') await update($, compact, () => stored)
     const storedLines = await $.store.get('outputLines')
@@ -288,29 +287,73 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'skin' }, async ($, e) => {
-    const [arg, compactArg] = e.args.trim().toLowerCase().split(/\s+/)
-    if (arg === 'compact') {
-      const value =
-        compactArg === 'on' ? true : compactArg === 'off' ? false : !(await read($, compact))
-      await update($, compact, () => value)
-      await $.store.set('compact', value)
-      return { text: `compact tool rows are now ${value ? 'ON' : 'OFF'}` }
+    const action = parseCommand(e.args)
+
+    const status = async () => {
+      const hidden = await read($, compact)
+      const lines = await read($, outputLines)
+      return [
+        'skin settings',
+        `  Colors:   ${enabled ? 'on' : 'off'}`,
+        `  Details:  ${hidden ? 'hidden (one line per tool call)' : 'shown'}`,
+        `  Output:   ${hidden ? 'hidden while details are hidden' : describeOutput(lines)}`,
+        '',
+        'Run /skin help to see every command.',
+      ].join('\n')
     }
-    if (arg === 'lines') {
-      const value = parseOutputLines(compactArg)
-      if (value === undefined) {
-        const current = await read($, outputLines)
+
+    switch (action.kind) {
+      case 'status':
+        return { text: await status() }
+      case 'help':
+        return { text: HELP }
+      case 'reset':
+        enabled = enabledDefault
+        await $.store.set('colors', null)
+        await update($, compact, () => false)
+        await $.store.set('compact', false)
+        await update($, outputLines, () => null)
+        await $.store.set('outputLines', null)
+        $.ui.invalidate('ui.render')
+        return { text: `Everything is back to the defaults.\n\n${await status()}` }
+      case 'colors':
+        enabled = action.on
+        await $.store.set('colors', action.on)
+        $.ui.invalidate('ui.render')
         return {
-          text: `tool output lines: ${current ?? 'default'}. Set it with /skin lines <n> | max | default`,
+          text: action.on
+            ? 'Tool-row colours are now on.'
+            : 'Tool-row colours are now off: tool rows use Claude Code’s own look.',
+        }
+      case 'details': {
+        const hide = !action.show
+        await update($, compact, () => hide)
+        await $.store.set('compact', hide)
+        return {
+          text: hide
+            ? 'Tool details are now hidden: each tool call shows one line. Press ctrl+o to see a call in full.'
+            : 'Tool details are now shown.',
         }
       }
-      await update($, outputLines, () => value)
-      await $.store.set('outputLines', value)
-      return { text: `tool output lines are now ${value ?? 'default'}` }
+      case 'output': {
+        await update($, outputLines, () => action.lines)
+        await $.store.set('outputLines', action.lines)
+        const what =
+          action.lines === null
+            ? 'Tool output is back to Claude Code’s default.'
+            : `Tool output now shows ${describeOutput(action.lines)}.${
+                action.lines === 'max' ? '' : ' Press ctrl+o to see the rest.'
+              }`
+        const note = (await read($, compact))
+          ? '\nDetails are hidden, so output stays hidden until you run /skin details show.'
+          : ''
+        return { text: what + note }
+      }
+      case 'unknown':
+        return {
+          text: `I didn't understand "${action.input}".${action.hint ? ` ${action.hint}` : ''}\n\n${HELP}`,
+        }
     }
-    enabled = arg === 'on' ? true : arg === 'off' ? false : !enabled
-    $.ui.invalidate('ui.render')
-    return { text: `tool-row syntax colouring is now ${enabled ? 'ON' : 'OFF'}` }
   })
 
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {

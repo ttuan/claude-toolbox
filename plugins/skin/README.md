@@ -33,17 +33,50 @@ claude plugin install skin@claude-toolbox
 
 Icons need a [Nerd Font](https://www.nerdfonts.com/) in your terminal.
 
-## Turn it on or off
+## Commands
 
-`/skin on`, `/skin off`, or `/skin` alone to flip it. The default lives in
-`/config` as **Highlight tool rows**, next to **Max length to highlight**, which
-skips colouring for very long commands.
+Every command is `/skin` followed by what you want to change. Each answer is a
+full sentence saying what changed, and every choice carries over to later
+sessions.
 
-## Compact mode
+| Command | What it does |
+| --- | --- |
+| `/skin` | Show the current settings |
+| `/skin help` | List every command |
+| `/skin colors on` / `off` | Turn tool-row colours on or off |
+| `/skin details hide` / `show` | Hide tool details (one line per call) or show them |
+| `/skin output 3` | Show only the first 3 lines of each tool's output |
+| `/skin output all` | Show every line of output |
+| `/skin output default` | Let Claude Code decide, as without the plugin |
+| `/skin reset` | Go back to the defaults |
 
-`/skin compact [on | off]` hides tool details, leaving one line per call:
-the tool name and its summary. With no argument it flips the current state, and
-the choice carries over to later sessions.
+Word order is loose, and filler words are fine, so these all work:
+
+```text
+/skin hide details
+/skin show 3 lines
+/skin limit output to 3 lines
+/skin turn colors off
+/skin show all output
+```
+
+A command it cannot read is never guessed: `/skin` says what it did not
+understand and lists the commands. A value left out, as in `/skin colors`, gets a
+hint for the right form.
+
+`/skin` alone prints something like:
+
+```text
+skin settings
+  Colors:   on
+  Details:  shown
+  Output:   the first 3 lines
+```
+
+### Hide details
+
+`/skin details hide` leaves one line per tool call: the icon, the tool name and
+its summary.
 
 ```text
  Bash - Run the test suite
@@ -59,15 +92,28 @@ and Write show the path and the lines changed. Output and diffs are hidden.
 - Agent, AskUserQuestion, plan and task tools are left as they are.
 - Only the display changes: the model reads the same output, so no tokens are saved.
 
-## Output lines
+### Limit output
 
-`/skin lines <n | max | default>` sets how many lines of Bash, Edit and
-Write output a tool row draws, and carries over to later sessions.
+`/skin output <n>` sets how many lines of Bash, Edit and Write output a tool row
+draws.
 
 - `3` draws three lines, then `… +N lines (ctrl+o to expand)`.
-- `max` draws every line.
 - `0` draws only the `… +N lines` hint.
-- `default` goes back to the engine's own rows.
+- `all` draws every line.
+- `default` goes back to Claude Code's own rows.
 
-Compact mode wins: while it is on, no output is drawn. Errors, ctrl+o and other
-tools (Read, Grep, MCP tools) keep the engine's rows.
+Hidden details win: while details are hidden, no output is drawn, and
+`/skin output` says so. Errors, ctrl+o and other tools (Read, Grep, MCP tools)
+keep Claude Code's rows.
+
+### Old command names
+
+`/skin compact on` and `/skin compact off` still work and mean
+`/skin details hide` and `/skin details show`.
+
+## Settings in /config
+
+- **Highlight tool rows**: whether colours start on. `/skin colors` overrides it,
+  and `/skin reset` goes back to it.
+- **Max length to highlight**: commands or paths longer than this many
+  characters are not coloured, to stay cheap on huge inputs.
