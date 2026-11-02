@@ -1,14 +1,14 @@
 import { expect, test } from 'claude-code/testing'
 
 const TOOL_USE = {
-  plugin: 'bash-syntax',
+  plugin: 'skin',
   component: 'ToolUse',
   requestId: 'call',
   surface: 'terminal',
 } as const
 
 const TOOL_RESULT = {
-  plugin: 'bash-syntax',
+  plugin: 'skin',
   component: 'ToolResult',
   requestId: 'call',
   surface: 'terminal',

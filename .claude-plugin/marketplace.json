@@ -10,10 +10,10 @@
   },
   "plugins": [
     {
-      "name": "bash-syntax",
-      "source": "./plugins/bash-syntax",
-      "description": "Syntax-highlight tool-call rows (Bash, Read, Edit, Write, Glob, Grep and more), with per-tool icons, an optional compact mode and an output-line limit.",
-      "version": "0.5.0",
+      "name": "skin",
+      "source": "./plugins/skin",
+      "description": "Restyle Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit.",
+      "version": "0.6.0",
       "category": "ui"
     }
   ]

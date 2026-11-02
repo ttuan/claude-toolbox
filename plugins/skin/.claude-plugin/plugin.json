@@ -1,7 +1,7 @@
 {
-  "name": "bash-syntax",
-  "version": "0.5.0",
-  "description": "Syntax-highlight tool-call rows, with an optional compact mode that hides tool details",
+  "name": "skin",
+  "version": "0.6.0",
+  "description": "Restyle Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit",
   "types": "./types/index.d.ts",
   "userConfig": {
     "enabled": {

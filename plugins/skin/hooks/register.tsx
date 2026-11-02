@@ -255,12 +255,12 @@ function changeSpans(output: unknown): Span[] {
 
 // Compact mode lives in $.state so a row that read it redraws when it flips,
 // and in $.store so it carries over to the next session.
-const compact = atom({ plugin: 'bash-syntax', key: 'compact' } as const, false)
+const compact = atom({ plugin: 'skin', key: 'compact' } as const, false)
 
 // How many lines of a tool's output to draw: a count, 'max', or null for the
 // engine's own rows. Compact mode wins: it draws none.
 const outputLines = atom(
-  { plugin: 'bash-syntax', key: 'outputLines' } as const,
+  { plugin: 'skin', key: 'outputLines' } as const,
   null as OutputLines,
 )
 
@@ -276,7 +276,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'bash-syntax',
+      name: 'skin',
       description:
         'Toggle tool-row colouring (on | off), hide tool details (compact [on | off]), or limit tool output (lines <n> | max | default)',
     })
@@ -287,7 +287,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'bash-syntax' }, async ($, e) => {
+  on('command.run', { command: 'skin' }, async ($, e) => {
     const [arg, compactArg] = e.args.trim().toLowerCase().split(/\s+/)
     if (arg === 'compact') {
       const value =
@@ -301,7 +301,7 @@ export const register: Register = (on, options) => {
       if (value === undefined) {
         const current = await read($, outputLines)
         return {
-          text: `tool output lines: ${current ?? 'default'}. Set it with /bash-syntax lines <n> | max | default`,
+          text: `tool output lines: ${current ?? 'default'}. Set it with /skin lines <n> | max | default`,
         }
       }
       await update($, outputLines, () => value)

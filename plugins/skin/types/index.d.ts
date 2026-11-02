@@ -5,6 +5,6 @@ export type OutputLines = number | 'max' | null
 
 declare module 'claude-code' {
   interface PluginState {
-    'bash-syntax': { compact: CompactMode; outputLines: OutputLines }
+    'skin': { compact: CompactMode; outputLines: OutputLines }
   }
 }

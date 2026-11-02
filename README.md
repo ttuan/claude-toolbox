@@ -39,7 +39,7 @@ Empty folders are kept with a `.gitkeep` until their first real file lands.
 
 | Plugin | What it does |
 | --- | --- |
-| `bash-syntax` | Syntax-highlights tool-call rows (Bash, Read, Edit, Write, Glob, Grep and more) with per-tool icons, an optional compact mode, and an output-line limit. Toggle with `/bash-syntax`. |
+| `skin` | Restyles Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit. Toggle with `/skin`. |
 
 ## Install a plugin
 
@@ -47,14 +47,14 @@ Add the marketplace once, then install what you want:
 
 ```bash
 claude plugin marketplace add ttuan/claude-toolbox
-claude plugin install bash-syntax@claude-toolbox
+claude plugin install skin@claude-toolbox
 ```
 
 To install from a local clone instead of GitHub:
 
 ```bash
 claude plugin marketplace add ~/code/claude-toolbox
-claude plugin install bash-syntax@claude-toolbox
+claude plugin install skin@claude-toolbox
 ```
 
 Each Claude config dir (`~/.claude`, and any other `CLAUDE_CONFIG_DIR`) has its
