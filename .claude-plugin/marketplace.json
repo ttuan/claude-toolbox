@@ -1,0 +1,20 @@
+{
+  "name": "claude-toolbox",
+  "owner": {
+    "name": "ttuan",
+    "email": "tuantv.nhnd@gmail.com"
+  },
+  "metadata": {
+    "description": "ttuan's Claude Code toolbox: plugins, skills, status line and herdr sidebar",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "bash-syntax",
+      "source": "./plugins/bash-syntax",
+      "description": "Syntax-highlight tool-call rows (Bash, Read, Edit, Write, Glob, Grep and more), with per-tool icons, an optional compact mode and an output-line limit.",
+      "version": "0.5.0",
+      "category": "ui"
+    }
+  ]
+}
