@@ -1,0 +1,58 @@
+# herdr sidebar rows for Claude Code and Codex panes.
+#
+# Copy these sections into ~/.config/herdr/config.toml (herdr reads a single
+# config file, so they cannot be included from here), then run:
+#
+#   herdr config check            # config: ok
+#   herdr server reload-config    # status: "applied"
+#
+# Each Claude or Codex pane gets a 4-row block:
+#
+#   my-project      agents        <- workspace + session name (or tab name)
+#   ⠐ working       claude        <- built-in state and agent tokens
+#   👤 alice · Acme               <- account of THIS pane
+#   📊 5h 42% (3h12m)             <- 5-hour quota, coloured by level
+#
+# The custom tokens ($convo, $acct, $quota_*) are filled by herdr-claude-meta
+# (from the Claude Code status line) and herdr-codex-meta (from Codex hooks).
+# Colours below are tuned for herdr's tokyo-night theme; change the fg values
+# to suit yours.
+
+[ui.sidebar.agents]
+# A Claude block is 4 rows tall; a blank row between blocks keeps them apart.
+row_gap = 1
+# Default rows for every other agent. Set explicitly: herdr 0.8.0 dropped
+# state_text from its defaults.
+rows = [["workspace", "tab"], ["state_icon", "state_text", "agent"]]
+
+# Per-agent rows. Kept here rather than in `rows`, so panes of other agents do
+# not get two empty rows.
+#
+# The quota needs three tokens because sidebar style tokens are static: they
+# cannot change colour by value. The script fills exactly one of them and clears
+# the other two, which looks like a single row that changes colour.
+[ui.sidebar.agents.rows_by_agent]
+claude = [
+  # $convo: the session name set with /rename, else the tab name.
+  # fg set explicitly: herdr's default for a secondary token is too dim on the
+  # tokyo-night panel background.
+  ["workspace", { token = "$convo", fg = "#a9b1d6" }],
+  ["state_icon", "state_text", "agent"],
+  [{ token = "$acct", fg = "#7aa2f7" }],
+  [
+    { token = "$quota_ok", fg = "#9ece6a" },    # < 70%
+    { token = "$quota_warn", fg = "#F49D00" },  # 70-89%
+    { token = "$quota_crit", fg = "#f7768e" },  # >= 90%
+  ],
+]
+
+codex = [
+  ["workspace", "tab"],
+  ["state_icon", "state_text", "agent"],
+  [{ token = "$acct", fg = "#7aa2f7" }],
+  [
+    { token = "$quota_ok", fg = "#9ece6a" },
+    { token = "$quota_warn", fg = "#F49D00" },
+    { token = "$quota_crit", fg = "#f7768e" },
+  ],
+]

@@ -30,7 +30,7 @@ claude-toolbox/
 | `skills/` | Custom skills |
 | [`settings/statusline/`](settings/statusline) | An offline status line: model, account, plan quota and context window. No keychain, no network |
 | `settings/themes/` | Custom themes for `~/.claude/themes/` |
-| `integrations/herdr/` | herdr status sidebar config and its metadata scripts |
+| [`integrations/herdr/`](integrations/herdr) | herdr sidebar rows showing each Claude and Codex pane's account and 5h quota |
 | `docs/` | Notes and documentation |
 
 Empty folders are kept with a `.gitkeep` until their first real file lands.
