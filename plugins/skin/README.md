@@ -11,8 +11,8 @@ icon, the summary in teal, and the lines an Edit added and removed.*
 
 ## What it does now
 
-It hooks `ui.render` for the `ToolUse` and `ToolResult` components and redraws
-each tool call:
+It hooks `ui.render` for the `ToolUse`, `ToolGroup`, `ToolResult` and
+`AssistantMessage` components and redraws each tool call:
 
 - **Per-tool icons** (Nerd Font) in place of the `⏺` bullet, coloured by the
   call's state: running, done, interrupted, failed.
@@ -25,6 +25,12 @@ each tool call:
   dimmed and the file name highlighted.
 - **Other tools** (WebFetch, ToolSearch, MCP tools, ...) get an icon, their name
   and one key argument such as the URL or query.
+- **Folded reads and searches**: the run of Glob, Grep and Read calls that
+  Claude Code folds into one count line (`ToolGroup`) is drawn as one row per
+  call instead. ctrl+o still shows the engine's view.
+- **Spacing**: a blank line sits between a reply text and the tool call after
+  it; a tool call and the text after it, and consecutive tool calls, sit
+  together.
 - Agent, AskUserQuestion, plan and task tools are left to the engine.
 
 The colours are a Monokai-style palette tuned for a dark background.

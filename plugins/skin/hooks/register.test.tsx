@@ -324,3 +324,112 @@ test('command: /skin answers in full sentences', async ($, on) => {
   const unknown = await $.command.run({ command: 'skin', args: 'banana' })
   expect(unknown.text).toMatch(/didn't understand "banana"/)
 })
+
+// --- Spacing: a blank line between a text and the tool call after it, none
+//     between a tool call and the text after it, none between tool calls.
+
+function withTranscript(on: any, messages: unknown[]) {
+  on('session.messages', () => ({ value: messages }))
+}
+
+const ASSISTANT_MESSAGE = {
+  plugin: 'skin',
+  component: 'AssistantMessage',
+  requestId: 'msg',
+  surface: 'terminal',
+} as const
+
+const call = (id: string) => ({ tool_use_id: id, name: 'Bash', input: {} })
+
+test('spacing: a tool call after a text gets a blank line above it', async ($, on) => {
+  withTranscript(on, [
+    { role: 'user', text: 'go', toolUses: [] },
+    { role: 'assistant', text: 'Checking the files first.', toolUses: [call('call')] },
+  ])
+  const row = await $.ui.mount({ ...TOOL_USE, props: useProps('Bash', { command: 'ls', description: 'List' }) })
+  expect((await row.find({ type: 'Box' }))?.props.marginTop).toBe(1)
+  await row.unmount()
+})
+
+test('spacing: a tool call after another tool call sits right under it', async ($, on) => {
+  withTranscript(on, [
+    { role: 'assistant', text: '', toolUses: [call('first')] },
+    { role: 'user', text: '', toolUses: [], toolResults: [{ tool_use_id: 'first' }] },
+    { role: 'assistant', text: '', toolUses: [call('call')] },
+  ])
+  const row = await $.ui.mount({ ...TOOL_USE, props: useProps('Bash', { command: 'ls', description: 'List' }) })
+  expect((await row.find({ type: 'Box' }))?.props.marginTop).toBe(0)
+  await row.unmount()
+})
+
+test('spacing: a text after a tool call is pulled up under it; other texts are left alone', async ($, on) => {
+  withEngine(on)
+  withTranscript(on, [
+    { role: 'assistant', text: 'Before the call.', toolUses: [call('first')] },
+    { role: 'user', text: '', toolUses: [], toolResults: [{ tool_use_id: 'first' }] },
+    { role: 'assistant', text: 'After the call.', toolUses: [] },
+  ])
+  const after = await $.ui.mount({
+    ...ASSISTANT_MESSAGE,
+    props: { text: 'After the call.', isFirstOfReply: false },
+  })
+  expect((await after.find({ type: 'Box' }))?.props.marginTop).toBe(-1)
+  await after.unmount()
+
+  const before = await $.ui.mount({
+    ...ASSISTANT_MESSAGE,
+    props: { text: 'Before the call.', isFirstOfReply: true },
+  })
+  expect(await before.find({ type: 'Box' })).toBeUndefined()
+  await before.unmount()
+})
+
+// --- ToolGroup: a folded run of reads and searches draws one row per call.
+
+const TOOL_GROUP = {
+  plugin: 'skin',
+  component: 'ToolGroup',
+  requestId: 'group',
+  surface: 'terminal',
+} as const
+
+const groupCall = (id: string, tool: string, input: unknown) => ({
+  tool_use_id: id,
+  tool,
+  input,
+  isRunning: false,
+  isErrored: false,
+  isInterrupted: false,
+  output: {},
+})
+
+const groupProps = (extra: object = {}) => ({
+  calls: [
+    groupCall('g1', 'Glob', { pattern: '**/*.py', path: '/tmp/skin-demo' }),
+    groupCall('g2', 'Grep', { pattern: 'TODO', path: '/tmp/skin-demo' }),
+    groupCall('g3', 'Read', { file_path: '/tmp/skin-demo/app.py' }),
+  ],
+  isActive: false,
+  isExpanded: false,
+  isCallsOnly: true,
+  ...extra,
+})
+
+test('group: each folded call gets its own row', async ($, on) => {
+  withEngine(on)
+  const group = await $.ui.mount({ ...TOOL_GROUP, props: groupProps() })
+  expect(await group.find({ type: 'Text', text: /engine/ })).toBeUndefined()
+  expect(await group.find({ type: 'Text', text: /Glob\(\*\*\/\*\.py in \/tmp\/skin-demo\)/ })).toBeTruthy()
+  expect(await group.find({ type: 'Text', text: /Grep\(TODO in \/tmp\/skin-demo\)/ })).toBeTruthy()
+  expect(await group.find({ type: 'Text', text: /Read\(\/tmp\/skin-demo\/app\.py\)/ })).toBeTruthy()
+  await group.unmount()
+})
+
+test('group: ctrl+o and a group with more than calls go to the engine', async ($, on) => {
+  withEngine(on)
+  for (const extra of [{ isExpanded: true }, { isCallsOnly: false }]) {
+    const group = await $.ui.mount({ ...TOOL_GROUP, props: groupProps(extra) })
+    expect(await group.find({ type: 'Text', text: /engine/ })).toBeTruthy()
+    await group.unmount()
+  }
+})

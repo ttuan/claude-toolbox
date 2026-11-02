@@ -248,6 +248,74 @@ function changeSpans(output: unknown): Span[] {
   return spans
 }
 
+// --- Spacing between rows ---
+// The engine puts a blank line above every reply text and none above a row
+// this mod draws, so a tool row sticks to the text above it and the text
+// after it floats. Flip that: a blank line between a text and the tool call
+// after it, none between a tool call and the text after it, none between two
+// tool calls. What came before a row is read from the transcript.
+type Prev = 'text' | 'tool' | 'user' | 'none'
+type Item = { kind: 'text'; text: string } | { kind: 'tool'; id: string } | { kind: 'user' }
+
+let itemsCache: { at: number; items: Promise<Item[]> } | undefined
+const CACHE_MS = 250
+
+async function transcriptItems($: any): Promise<Item[]> {
+  const now = Date.now()
+  if (itemsCache && now - itemsCache.at < CACHE_MS) return itemsCache.items
+  const items = (async () => {
+    const out: Item[] = []
+    let raw: unknown
+    try {
+      raw = await $.session.messages()
+    } catch {
+      return out // no transcript to read: leave the spacing alone
+    }
+    if (!Array.isArray(raw)) return out
+    const messages = raw as {
+      role: 'user' | 'assistant'
+      text: string
+      toolUses?: { id?: string; tool_use_id?: string }[]
+      toolResults?: unknown[]
+    }[]
+    for (const m of messages) {
+      if (m.role === 'assistant') {
+        if (m.text.trim().length > 0) out.push({ kind: 'text', text: m.text })
+        for (const u of m.toolUses ?? []) {
+          const id = u.id ?? u.tool_use_id
+          if (typeof id === 'string') out.push({ kind: 'tool', id })
+        }
+      } else if (!(m.toolResults && m.toolResults.length > 0) && m.text.trim().length > 0) {
+        out.push({ kind: 'user' })
+      }
+    }
+    return out
+  })()
+  itemsCache = { at: now, items }
+  return items
+}
+
+const kindOf = (item: Item | undefined): Prev => item?.kind ?? 'none'
+
+async function prevOfTool($: any, id: string): Promise<Prev> {
+  const items = await transcriptItems($)
+  const i = items.findIndex(it => it.kind === 'tool' && it.id === id)
+  return i < 0 ? 'none' : kindOf(items[i - 1])
+}
+
+const norm = (t: string) => t.replace(/\s+/g, ' ').trim()
+
+async function prevOfText($: any, text: string): Promise<Prev> {
+  const want = norm(text).slice(0, 80)
+  if (want.length === 0) return 'none'
+  const items = await transcriptItems($)
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i]
+    if (it?.kind === 'text' && norm(it.text).includes(want)) return kindOf(items[i - 1])
+  }
+  return 'none'
+}
+
 // Compact mode lives in $.state so a row that read it redraws when it flips,
 // and in $.store so it carries over to the next session.
 const compact = atom({ plugin: 'skin', key: 'compact' } as const, false)
@@ -264,6 +332,125 @@ const outputLines = atom(
 let enabled = true
 let enabledDefault = true
 let maxChars = 2000
+
+// A tool row as this mod draws it, or undefined to leave it to the engine.
+async function drawToolUse($: any, e: any): Promise<any> {
+  const tool = e.props.tool
+  // ctrl+o (isExpanded) always shows everything.
+  const isCompact =
+    !e.props.isExpanded && !KEEP_IN_COMPACT.has(tool) && (await read($, compact))
+  if (!enabled && !isCompact) return undefined
+  const input = e.props.input as AnyInput | undefined
+  if (!input) return undefined
+
+  const { Box, Text } = $.ui.resolve(e)
+
+  const bullet = e.props.isErrored
+    ? 'error'
+    : e.props.isInterrupted
+      ? 'warning'
+      : e.props.isRunning
+        ? 'claude'
+        : 'success'
+  const icon = ICON[tool] ?? DEFAULT_ICON
+
+  const drawSpans = (spans: Span[], keyPrefix: string, italic = false) =>
+    spans.map((s, si) => (
+      <Text key={`${keyPrefix}${si}`} color={s.color} dimColor={s.dim} italic={italic}>
+        {s.text}
+      </Text>
+    ))
+
+  // One-line header: ⏺ Name - summary
+  const summaryRow = (summary?: string) => (
+    <Text wrap={isCompact ? 'truncate-end' : 'wrap'}>
+      <Text color={bullet}>{icon} </Text>
+      <Text bold italic>{tool}</Text>
+      {summary ? (
+        <Text color={C.summary} italic>{' - '}{summary}</Text>
+      ) : null}
+    </Text>
+  )
+
+  // One-line header: ⏺ Name(<coloured arg>)<after>
+  // One Text, so a long path wraps as a line and not column by column.
+  const inlineRow = (extra: Span[], after: Span[] = []) => (
+    <Text wrap={isCompact ? 'truncate-middle' : 'wrap'}>
+      <Text color={bullet}>{icon} </Text>
+      <Text bold italic>{tool}</Text>
+      <Text italic>(</Text>
+      {drawSpans(extra, 'a', true)}
+      <Text italic>)</Text>
+      {drawSpans(after, 'c')}
+    </Text>
+  )
+
+  // --- Bash: full shell tokenising, multi-line aware ---
+  if (tool === 'Bash') {
+    const command = input.command
+    if (typeof command !== 'string' || command.trim().length === 0) {
+      return undefined
+    }
+    if (isCompact) return summaryRow(input.description?.trim() || firstLine(command))
+    if (command.length > maxChars) return undefined // safety cap
+
+    const lines = command.split('\n')
+    const expanded = e.props.isExpanded ?? false
+    const visible = expanded ? lines : lines.slice(0, 1)
+    const hidden = expanded ? 0 : lines.length - 1
+
+    return (
+      <Box flexDirection="column">
+        {summaryRow(input.description)}
+        <Box marginLeft={2} flexDirection="column">
+          {visible.map((line, li) => (
+            <Text key={`l${li}`} wrap={expanded ? 'wrap' : 'truncate-end'}>
+              {drawSpans(tokenizeLine(line), `s${li}_`)}
+            </Text>
+          ))}
+          {hidden > 0 ? (
+            <Text dimColor>… +{hidden} lines (ctrl+o to expand)</Text>
+          ) : null}
+        </Box>
+      </Box>
+    )
+  }
+
+  // --- Path tools: colour the file path ---
+  if (PATH_TOOLS.has(tool)) {
+    const fp = input.file_path ?? input.path
+    if (typeof fp !== 'string' || fp.length === 0 || fp.length > maxChars) {
+      return undefined
+    }
+    return inlineRow(pathSpans(fp), isCompact ? changeSpans(e.props.output) : [])
+  }
+
+  // --- Glob: colour the glob pattern, dim the search path ---
+  if (tool === 'Glob') {
+    const pat = input.pattern
+    if (typeof pat !== 'string' || pat.length === 0) return undefined
+    const extra: Span[] = [{ text: pat, color: C.path }]
+    if (input.path) extra.push({ text: ` in ${input.path}`, dim: true })
+    return inlineRow(extra)
+  }
+
+  // --- Grep: colour the regex, dim path/glob scope ---
+  if (tool === 'Grep') {
+    const pat = input.pattern
+    if (typeof pat !== 'string' || pat.length === 0) return undefined
+    const extra: Span[] = [{ text: pat, color: C.string }]
+    if (input.glob) extra.push({ text: ` ${input.glob}`, dim: true })
+    else if (input.path) extra.push({ text: ` in ${input.path}`, dim: true })
+    return inlineRow(extra)
+  }
+
+  // --- Any other tool: leave the content-rich ones (plan, question, tasks,
+  //     Agent) to the engine; give the rest an icon + name + best-effort arg.
+  if (KEEP_IN_COMPACT.has(tool)) return undefined
+  const arg = genericArg(input)
+  if (arg) return inlineRow([{ text: arg, color: C.path }])
+  return summaryRow(input.description?.trim())
+}
 
 export const register: Register = (on, options) => {
   if (typeof options.enabled === 'boolean') enabled = enabledDefault = options.enabled
@@ -356,122 +543,66 @@ export const register: Register = (on, options) => {
     }
   })
 
+
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
-    const tool = e.props.tool
-    // ctrl+o (isExpanded) always shows everything.
-    const isCompact =
-      !e.props.isExpanded && !KEEP_IN_COMPACT.has(tool) && (await read($, compact))
-    if (!enabled && !isCompact) return next(e)
-    const input = e.props.input as AnyInput | undefined
-    if (!input) return next(e)
-
-    const { Box, Text } = $.ui.resolve(e)
-
-    const bullet = e.props.isErrored
-      ? 'error'
-      : e.props.isInterrupted
-        ? 'warning'
-        : e.props.isRunning
-          ? 'claude'
-          : 'success'
-    const icon = ICON[tool] ?? DEFAULT_ICON
-
-    const drawSpans = (spans: Span[], keyPrefix: string, italic = false) =>
-      spans.map((s, si) => (
-        <Text key={`${keyPrefix}${si}`} color={s.color} dimColor={s.dim} italic={italic}>
-          {s.text}
-        </Text>
-      ))
-
-    // One-line header: ⏺ Name - summary
-    const summaryRow = (summary?: string) => (
-      <Text wrap={isCompact ? 'truncate-end' : 'wrap'}>
-        <Text color={bullet}>{icon} </Text>
-        <Text bold italic>{tool}</Text>
-        {summary ? (
-          <Text color={C.summary} italic>{' - '}{summary}</Text>
-        ) : null}
-      </Text>
+    const tree = await drawToolUse($, e)
+    // The engine's own row keeps its own spacing.
+    if (tree === undefined) return next(e)
+    const prev = await prevOfTool($, e.props.tool_use_id)
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column" marginTop={prev === 'text' || prev === 'user' ? 1 : 0}>
+        {tree}
+      </Box>
     )
+  }).catch(($, e, next) => next(e))
 
-    // One-line header: ⏺ Name(<coloured arg>)<after>
-    // One Text, so a long path wraps as a line and not column by column.
-    const inlineRow = (extra: Span[], after: Span[] = []) => (
-      <Text wrap={isCompact ? 'truncate-middle' : 'wrap'}>
-        <Text color={bullet}>{icon} </Text>
-        <Text bold italic>{tool}</Text>
-        <Text italic>(</Text>
-        {drawSpans(extra, 'a', true)}
-        <Text italic>)</Text>
-        {drawSpans(after, 'c')}
-      </Text>
+  // A run of reads and searches the engine folds into one count line: draw
+  // each call as its own row, as a standalone call would be. ctrl+o, a group
+  // holding more than its calls, or a call this mod cannot draw: the engine's.
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    const { calls, isExpanded, isCallsOnly } = e.props
+    if (isExpanded || isCallsOnly !== true || calls.length === 0) return next(e)
+    const rows: unknown[] = []
+    for (const c of calls) {
+      const row = await drawToolUse($, {
+        ...e,
+        component: 'ToolUse',
+        props: {
+          tool_use_id: c.tool_use_id ?? '',
+          tool: c.tool,
+          input: c.input,
+          isRunning: c.isRunning,
+          isErrored: c.isErrored,
+          isInterrupted: c.isInterrupted,
+          isExpanded: false,
+          output: c.output,
+        },
+      })
+      if (row === undefined) return next(e)
+      rows.push(row)
+    }
+    const first = calls[0]?.tool_use_id
+    const prev = first ? await prevOfTool($, first) : 'none'
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column" marginTop={prev === 'text' || prev === 'user' ? 1 : 0}>
+        {rows}
+      </Box>
     )
+  }).catch(($, e, next) => next(e))
 
-    // --- Bash: full shell tokenising, multi-line aware ---
-    if (tool === 'Bash') {
-      const command = input.command
-      if (typeof command !== 'string' || command.trim().length === 0) {
-        return next(e)
-      }
-      if (isCompact) return summaryRow(input.description?.trim() || firstLine(command))
-      if (command.length > maxChars) return next(e) // safety cap
-
-      const lines = command.split('\n')
-      const expanded = e.props.isExpanded ?? false
-      const visible = expanded ? lines : lines.slice(0, 1)
-      const hidden = expanded ? 0 : lines.length - 1
-
-      return (
-        <Box flexDirection="column">
-          {summaryRow(input.description)}
-          <Box marginLeft={2} flexDirection="column">
-            {visible.map((line, li) => (
-              <Text key={`l${li}`} wrap={expanded ? 'wrap' : 'truncate-end'}>
-                {drawSpans(tokenizeLine(line), `s${li}_`)}
-              </Text>
-            ))}
-            {hidden > 0 ? (
-              <Text dimColor>… +{hidden} lines (ctrl+o to expand)</Text>
-            ) : null}
-          </Box>
-        </Box>
-      )
-    }
-
-    // --- Path tools: colour the file path ---
-    if (PATH_TOOLS.has(tool)) {
-      const fp = input.file_path ?? input.path
-      if (typeof fp !== 'string' || fp.length === 0 || fp.length > maxChars) {
-        return next(e)
-      }
-      return inlineRow(pathSpans(fp), isCompact ? changeSpans(e.props.output) : [])
-    }
-
-    // --- Glob: colour the glob pattern, dim the search path ---
-    if (tool === 'Glob') {
-      const pat = input.pattern
-      if (typeof pat !== 'string' || pat.length === 0) return next(e)
-      const extra: Span[] = [{ text: pat, color: C.path }]
-      if (input.path) extra.push({ text: ` in ${input.path}`, dim: true })
-      return inlineRow(extra)
-    }
-
-    // --- Grep: colour the regex, dim path/glob scope ---
-    if (tool === 'Grep') {
-      const pat = input.pattern
-      if (typeof pat !== 'string' || pat.length === 0) return next(e)
-      const extra: Span[] = [{ text: pat, color: C.string }]
-      if (input.glob) extra.push({ text: ` ${input.glob}`, dim: true })
-      else if (input.path) extra.push({ text: ` in ${input.path}`, dim: true })
-      return inlineRow(extra)
-    }
-
-    // --- Any other tool: leave the content-rich ones (plan, question, tasks,
-    //     Agent) to the engine; give the rest an icon + name + best-effort arg.
-    if (KEEP_IN_COMPACT.has(tool)) return next(e)
-    const arg = genericArg(input)
-    if (arg) return inlineRow([{ text: arg, color: C.path }])
-    return summaryRow(input.description?.trim())
+  // A reply text right after a tool call sits under it, with no blank line.
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    const tree = await next(e)
+    if (!enabled && !(await read($, compact))) return tree
+    if ((await prevOfText($, e.props.text)) !== 'tool') return tree
+    const { Box } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column" marginTop={-1}>
+        {tree}
+      </Box>
+    )
   }).catch(($, e, next) => next(e))
 
   // The body under a tool row: Edit's diff, Write's content, Bash's stdout.
