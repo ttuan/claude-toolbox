@@ -4,6 +4,11 @@ A Claude Code mod that restyles how the transcript looks. Today it redraws the
 tool-call rows; the plan is to grow it into a configurable skin for Claude
 Code's display (colour palettes, output styling).
 
+![skin with tool details hidden: one line per tool call, each with its own icon, the tool name in italics, a teal summary, and +/- line counts on Edit](assets/demo.png)
+
+*Tool details hidden with `/skin details hide`: one line per call, a per-tool
+icon, the summary in teal, and the lines an Edit added and removed.*
+
 ## What it does now
 
 It hooks `ui.render` for the `ToolUse` and `ToolResult` components and redraws

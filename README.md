@@ -39,7 +39,9 @@ Empty folders are kept with a `.gitkeep` until their first real file lands.
 
 | Plugin | What it does |
 | --- | --- |
-| `skin` | Restyles Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit. Run `/skin help` for its commands. |
+| [`skin`](plugins/skin) | Restyles Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit. Run `/skin help` for its commands. |
+
+![skin demo: one line per tool call with per-tool icons and teal summaries](plugins/skin/assets/demo.png)
 
 ## Install a plugin
 
