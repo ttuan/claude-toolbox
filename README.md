@@ -28,7 +28,7 @@ claude-toolbox/
 | --- | --- |
 | `plugins/` | Claude Code plugins / mods, each in its own folder, listed in the marketplace |
 | `skills/` | Custom skills |
-| `settings/statusline/` | Status line scripts, wired in with `statusLine` in `settings.json` |
+| [`settings/statusline/`](settings/statusline) | An offline status line: model, account, plan quota and context window. No keychain, no network |
 | `settings/themes/` | Custom themes for `~/.claude/themes/` |
 | `integrations/herdr/` | herdr status sidebar config and its metadata scripts |
 | `docs/` | Notes and documentation |
