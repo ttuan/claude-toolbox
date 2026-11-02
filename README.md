@@ -9,12 +9,28 @@ The repository doubles as a **Claude Code plugin marketplace**
 
 ## Layout
 
+Grouped by how each piece is used, not by what it is called:
+
+```
+claude-toolbox/
+├── .claude-plugin/marketplace.json
+├── plugins/            # installed through the marketplace
+├── skills/             # standalone skills
+├── settings/           # things you point to from settings.json
+│   ├── statusline/
+│   └── themes/
+├── integrations/       # glue for tools outside Claude Code
+│   └── herdr/
+└── docs/
+```
+
 | Folder | What lives here |
 | --- | --- |
 | `plugins/` | Claude Code plugins / mods, each in its own folder, listed in the marketplace |
 | `skills/` | Custom skills |
-| `statusline/` | Claude Code status line scripts |
-| `herdr/` | herdr status sidebar config |
+| `settings/statusline/` | Status line scripts, wired in with `statusLine` in `settings.json` |
+| `settings/themes/` | Custom themes for `~/.claude/themes/` |
+| `integrations/herdr/` | herdr status sidebar config and its metadata scripts |
 | `docs/` | Notes and documentation |
 
 Empty folders are kept with a `.gitkeep` until their first real file lands.
