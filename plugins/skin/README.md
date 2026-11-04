@@ -23,6 +23,8 @@ It hooks `ui.render` for the `ToolUse`, `ToolGroup`, `ToolResult` and
   italics, joined with a dash.
 - **Read, Edit, Write, Glob, Grep** show their path or pattern, with the folder
   dimmed and the file name highlighted.
+- **Skill** calls show the skill's name as the summary, like a Bash description,
+  with its arguments under it (on the same line when details are hidden).
 - **Other tools** (WebFetch, ToolSearch, MCP tools, ...) get an icon, their name
   and one key argument such as the URL or query.
 - **Folded reads and searches**: the run of Glob, Grep and Read calls that

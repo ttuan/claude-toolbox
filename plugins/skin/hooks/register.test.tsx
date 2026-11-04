@@ -433,3 +433,25 @@ test('group: ctrl+o and a group with more than calls go to the engine', async ($
     await group.unmount()
   }
 })
+
+test('Skill: the row names the skill, compact or not', async ($, on) => {
+  const row = await $.ui.mount({
+    ...TOOL_USE,
+    props: useProps('Skill', { skill: 'pr-description', args: 'draft' }),
+  })
+  expect(await row.find({ type: 'Text', text: /Skill - pr-description/ })).toBeTruthy()
+  expect(await row.find({ type: 'Text', text: /^draft$/ })).toBeTruthy()
+  await row.unmount()
+})
+
+test('compact: Skill shows its name and args on one line', async ($, on) => {
+  compactOn(on)
+  const row = await $.ui.mount({
+    ...TOOL_USE,
+    props: useProps('Skill', { skill: 'superpowers:brainstorming', args: 'a new pane\nmore' }),
+  })
+  expect(
+    await row.find({ type: 'Text', text: /Skill - superpowers:brainstorming a new pane/ }),
+  ).toBeTruthy()
+  await row.unmount()
+})

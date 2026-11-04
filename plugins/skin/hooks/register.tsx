@@ -16,6 +16,8 @@ type AnyInput = {
   query?: string
   prompt?: string
   name?: string
+  skill?: string
+  args?: string
 }
 
 // Monokai-ish palette, tuned for a dark background. Raw hex so the look is
@@ -423,6 +425,34 @@ async function drawToolUse($: any, e: any): Promise<any> {
       return undefined
     }
     return inlineRow(pathSpans(fp), isCompact ? changeSpans(e.props.output) : [])
+  }
+
+  // --- Skill: the skill's name as the summary, its args under it (like Bash) ---
+  if (tool === 'Skill') {
+    const name = input.skill?.trim()
+    if (!name) return undefined
+    const args = typeof input.args === 'string' ? input.args.trim() : ''
+    if (isCompact) return summaryRow(args ? `${name} ${firstLine(args)}` : name)
+    if (!args) return summaryRow(name)
+    const lines = args.split('\n')
+    const expanded = e.props.isExpanded ?? false
+    const visible = expanded ? lines : lines.slice(0, 1)
+    const hidden = expanded ? 0 : lines.length - 1
+    return (
+      <Box flexDirection="column">
+        {summaryRow(name)}
+        <Box marginLeft={2} flexDirection="column">
+          {visible.map((line, li) => (
+            <Text key={`k${li}`} wrap={expanded ? 'wrap' : 'truncate-end'}>
+              {line}
+            </Text>
+          ))}
+          {hidden > 0 ? (
+            <Text dimColor>… +{hidden} lines (ctrl+o to expand)</Text>
+          ) : null}
+        </Box>
+      </Box>
+    )
   }
 
   // --- Glob: colour the glob pattern, dim the search path ---

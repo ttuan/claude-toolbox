@@ -13,7 +13,7 @@
       "name": "skin",
       "source": "./plugins/skin",
       "description": "Restyle Claude Code's transcript: per-tool icons, syntax-coloured tool rows, a compact mode and an output-line limit.",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "category": "ui"
     }
   ]
